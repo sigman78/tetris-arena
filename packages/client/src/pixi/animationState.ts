@@ -1,4 +1,4 @@
-import { HIDDEN_ROWS } from "@tetris-arena/shared";
+import { HIDDEN_ROWS, PIECES } from "@tetris-arena/shared";
 import type { BoardSnapshot } from "@tetris-arena/shared";
 import { NEON_COLORS } from "./cellTextures.js";
 
@@ -63,8 +63,19 @@ export function tickAnimState(state: BoardAnimState, snapshot: BoardSnapshot): v
     state.shakeUntil = Math.max(state.shakeUntil, now + 220);
   }
 
-  // Danger: stack in top 6 visible rows
-  const topOccupied = snapshot.board.findIndex(row => row.some(c => c !== null));
+  // Danger: locked stack in top 6 visible rows.
+  // snapshot.board includes the active piece (merged by getBoardSnapshot), so exclude its
+  // cells from the search — otherwise the piece's spawn position triggers the danger overlay
+  // every piece, causing a visible red tint → fade-out "brightening" as it falls past row 6.
+  const activeSet = new Set<string>();
+  if (snapshot.active) {
+    for (const { x, y } of PIECES[snapshot.active.type][snapshot.active.rotation]!) {
+      activeSet.add(`${snapshot.active.x + x},${snapshot.active.y + y}`);
+    }
+  }
+  const topOccupied = snapshot.board.findIndex((row, ri) =>
+    row.some((c, ci) => c !== null && !activeSet.has(`${ci},${ri}`))
+  );
   state.dangerActive = topOccupied !== -1 && topOccupied < HIDDEN_ROWS + 6;
 
   state.topOut = snapshot.isTopOut;
