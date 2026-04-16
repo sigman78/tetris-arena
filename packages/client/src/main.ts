@@ -89,6 +89,7 @@ let seenOpponentScoreEventId = 0;
 let announcementId = 0;
 const banners: BannerEntry[] = [];
 const scoreBursts: ScoreBurst[] = [];
+const scoreTickRafs = new Map<string, number>();
 
 render();
 void bootstrap();
@@ -135,7 +136,7 @@ async function connectLobby(): Promise<void> {
     state.error = null;
     state.queueStatus.inQueue = false;
     resetAnnouncements();
-    pushBanner("CHALLENGER", "Match found", "start", 1200);
+    pushBanner("CHALLENGER", "Match found", "start", 2800);
     render();
     await room.leave();
     state.lobbyRoom = null;
@@ -153,7 +154,7 @@ async function connectMatch(payload: MatchFoundPayload): Promise<void> {
   state.result = null;
   state.error = null;
   resetAnnouncements();
-  pushBanner("ROUND 1", "Entering arena", "start", 1200);
+  pushBanner("ROUND 1", "Entering arena", "start", 2800);
   render();
 
   const room = await colyseusClient.consumeSeatReservation(normalizeSeatReservation(payload.reservation) as never);
@@ -171,7 +172,7 @@ async function connectMatch(payload: MatchFoundPayload): Promise<void> {
       result.winnerId === state.currentMatch?.you.playerId ? "VICTORY" : "DEFEAT",
       `${result.winnerNickname} ${result.winnerId === state.currentMatch?.you.playerId ? "falls to you" : "takes the match"}`,
       result.winnerId === state.currentMatch?.you.playerId ? "victory" : "danger",
-      2800
+      5000
     );
     updateMatchView();
   });
@@ -351,37 +352,69 @@ function renderMatch(): string {
               <span><strong>Attack</strong> <span id="local-attack">0</span></span>
             </div>
           </article>
-          <article class="panel board-card">
+          <article class="panel board-card board-card--opponent">
             <div class="board-meta">
               <div>
                 <strong id="opponent-name">Opponent</strong>
-                <div class="muted">Pressure meter</div>
+                <div class="muted">Rival board</div>
               </div>
               <div id="opponent-b2b" class="b2b-badge"></div>
               <div id="opponent-pending" class="muted"></div>
             </div>
-            <div class="board-stage">
+            <div class="board-stage board-stage--solo">
               <div class="canvas-wrap">
                 <canvas id="opponent-board"></canvas>
                 <div id="opponent-bursts" class="score-bursts score-bursts-opponent"></div>
               </div>
-              <aside class="piece-rail">
-                <div id="opponent-hold-slot"></div>
-                <div id="opponent-next-slot"></div>
-              </aside>
             </div>
             <div class="hud board-stats">
               <span><strong>Score</strong> <span id="opponent-score">0</span></span>
-              <span><strong>Level</strong> <span id="opponent-level">1</span></span>
-              <span><strong>Lines</strong> <span id="opponent-lines">0</span></span>
-              <span><strong>Combo</strong> <span id="opponent-combo">0</span></span>
-              <span><strong>Attack</strong> <span id="opponent-attack">0</span></span>
             </div>
           </article>
         </div>
       </section>
     </main>
   `;
+}
+
+function tickScoreTo(el: HTMLElement, target: number): void {
+  const id = el.id;
+  const currentTarget = Number(el.dataset.scoreTo ?? "0");
+
+  if (currentTarget === target) {
+    return;
+  }
+
+  const fromValue = Number(el.dataset.scoreFrom ?? "0");
+  // Snap displayed value as the new start
+  el.dataset.scoreFrom = String(fromValue);
+  el.dataset.scoreTo = String(target);
+
+  const existingRaf = scoreTickRafs.get(id);
+  if (existingRaf !== undefined) {
+    window.cancelAnimationFrame(existingRaf);
+  }
+
+  const startTime = performance.now();
+  const duration = 450;
+
+  const tick = (now: number): void => {
+    const elapsed = now - startTime;
+    const progress = Math.min(1, elapsed / duration);
+    const from = Number(el.dataset.scoreFrom ?? "0");
+    const to = Number(el.dataset.scoreTo ?? "0");
+    const displayed = Math.round(from + (to - from) * progress);
+    el.textContent = formatScore(displayed);
+
+    if (progress < 1) {
+      scoreTickRafs.set(id, window.requestAnimationFrame(tick));
+    } else {
+      el.dataset.scoreFrom = String(target);
+      scoreTickRafs.delete(id);
+    }
+  };
+
+  scoreTickRafs.set(id, window.requestAnimationFrame(tick));
 }
 
 function updateMatchView(): void {
@@ -404,15 +437,9 @@ function updateMatchView(): void {
   const localLines = document.querySelector<HTMLElement>("#local-lines");
   const localCombo = document.querySelector<HTMLElement>("#local-combo");
   const opponentScore = document.querySelector<HTMLElement>("#opponent-score");
-  const opponentLevel = document.querySelector<HTMLElement>("#opponent-level");
-  const opponentLines = document.querySelector<HTMLElement>("#opponent-lines");
-  const opponentCombo = document.querySelector<HTMLElement>("#opponent-combo");
   const localHold = document.querySelector<HTMLElement>("#local-hold-slot");
   const localNext = document.querySelector<HTMLElement>("#local-next-slot");
-  const opponentHold = document.querySelector<HTMLElement>("#opponent-hold-slot");
-  const opponentNext = document.querySelector<HTMLElement>("#opponent-next-slot");
   const localAttack = document.querySelector<HTMLElement>("#local-attack");
-  const opponentAttack = document.querySelector<HTMLElement>("#opponent-attack");
 
   if (
     !title ||
@@ -429,15 +456,9 @@ function updateMatchView(): void {
     !localLines ||
     !localCombo ||
     !opponentScore ||
-    !opponentLevel ||
-    !opponentLines ||
-    !opponentCombo ||
     !localHold ||
     !localNext ||
-    !opponentHold ||
-    !opponentNext ||
-    !localAttack ||
-    !opponentAttack
+    !localAttack
   ) {
     return;
   }
@@ -446,18 +467,33 @@ function updateMatchView(): void {
   if (state.result) {
     const result = state.result;
     const isVictory = snapshot ? result.winnerId === snapshot.you.playerId : false;
+    const loserNickname = snapshot
+      ? (isVictory ? snapshot.opponent.nickname : snapshot.you.nickname)
+      : "Opponent";
+    const particleColors = ["#49dcb1", "#a1ffce", "#59a9ff", "#ffe45c", "#ff5d73"];
+    const particles = isVictory
+      ? Array.from({ length: 12 }, (_, i) => {
+          const tx = Math.round((Math.random() - 0.5) * 240);
+          const ty = Math.round(-80 - Math.random() * 120);
+          const delay = (Math.random() * 0.35).toFixed(2);
+          const color = particleColors[i % particleColors.length]!;
+          return `<span class="result-particle" style="--tx:${tx}px;--ty:${ty}px;--delay:${delay}s;--color:${color}"></span>`;
+        }).join("")
+      : "";
+
     resultScreen.hidden = false;
+    resultScreen.className = `result-screen result-screen--${isVictory ? "victory" : "defeat"}`;
     resultScreen.innerHTML = `
-      <div class="result-card">
+      ${particles}
+      <div class="result-card${isVictory ? "" : " result-card--defeat"}">
         <div class="result-heading ${isVictory ? "tone-victory" : "tone-danger"}">${isVictory ? "VICTORY" : "DEFEAT"}</div>
-        <div class="result-winner">${escapeHtml(result.winnerNickname)}</div>
         <div class="result-scores">
           <div class="result-score-item">
             <span class="result-score-label">${escapeHtml(result.winnerNickname)}</span>
             <span class="result-score-value">${formatScore(result.winnerScore)}</span>
           </div>
           <div class="result-score-item">
-            <span class="result-score-label muted">Opponent</span>
+            <span class="result-score-label">${escapeHtml(loserNickname)}</span>
             <span class="result-score-value muted">${formatScore(result.loserScore)}</span>
           </div>
         </div>
@@ -466,6 +502,7 @@ function updateMatchView(): void {
     `;
   } else {
     resultScreen.hidden = true;
+    resultScreen.className = "result-screen";
   }
 
   if (!snapshot) {
@@ -474,8 +511,6 @@ function updateMatchView(): void {
     overlay.innerHTML = "CONNECTING";
     localHold.innerHTML = renderPiecePreview("Hold", null);
     localNext.innerHTML = renderPiecePreview("Next", null);
-    opponentHold.innerHTML = renderPiecePreview("Hold", null);
-    opponentNext.innerHTML = renderPiecePreview("Next", null);
     renderAnnouncements();
     return;
   }
@@ -489,20 +524,14 @@ function updateMatchView(): void {
   opponentB2b.classList.toggle("active", snapshot.opponent.backToBack);
   localPending.textContent = `Pending garbage ${snapshot.you.pendingGarbage}`;
   opponentPending.textContent = `Pending garbage ${snapshot.opponent.pendingGarbage}`;
-  localScore.textContent = formatScore(snapshot.you.score);
+  tickScoreTo(localScore, snapshot.you.score);
   localLevel.textContent = String(snapshot.you.level);
   localLines.textContent = String(snapshot.you.linesClearedTotal);
   localCombo.textContent = String(snapshot.you.combo);
-  opponentScore.textContent = formatScore(snapshot.opponent.score);
-  opponentLevel.textContent = String(snapshot.opponent.level);
-  opponentLines.textContent = String(snapshot.opponent.linesClearedTotal);
-  opponentCombo.textContent = String(snapshot.opponent.combo);
+  tickScoreTo(opponentScore, snapshot.opponent.score);
   localAttack.textContent = String(snapshot.you.garbageSentTotal);
-  opponentAttack.textContent = String(snapshot.opponent.garbageSentTotal);
   localHold.innerHTML = renderPiecePreview("Hold", snapshot.you.hold, !snapshot.you.canHold);
   localNext.innerHTML = renderPiecePreview("Next", snapshot.you.queue[0] ?? null);
-  opponentHold.innerHTML = renderPiecePreview("Hold", snapshot.opponent.hold, !snapshot.opponent.canHold);
-  opponentNext.innerHTML = renderPiecePreview("Next", snapshot.opponent.queue[0] ?? null);
 
   overlay.hidden = snapshot.status !== "countdown" || !snapshot.message;
   overlay.innerHTML = snapshot.status === "countdown" && snapshot.message ? escapeHtml(snapshot.message.toUpperCase()) : "";
@@ -513,15 +542,15 @@ function updateMatchView(): void {
 
 function processSnapshotTransitions(snapshot: MatchSnapshot): void {
   if (!previousSnapshot) {
-    pushBanner("ROUND 1", `${snapshot.you.nickname} VS ${snapshot.opponent.nickname}`, "start", 1200);
+    pushBanner("ROUND 1", `${snapshot.you.nickname} VS ${snapshot.opponent.nickname}`, "start", 2800);
   }
 
   if (previousSnapshot?.status === "countdown" && snapshot.countdownMs <= 2000 && previousSnapshot.countdownMs > 2000) {
-    pushBanner("READY", "Set your stack", "start", 1000);
+    pushBanner("READY", "Set your stack", "start", 2200);
   }
 
   if (previousSnapshot?.status === "countdown" && snapshot.status === "playing") {
-    pushBanner("FIGHT", "Stack and survive", "start", 1100);
+    pushBanner("FIGHT", "Stack and survive", "start", 2400);
   }
 
   // Countdown second-boundary pops
@@ -732,7 +761,7 @@ function pushScoreBurst(side: BurstSide, event: ScoringEvent): void {
   });
 
   if (side === "local" && (event.linesCleared >= 2 || event.comboBonus > 0 || event.backToBackBonus > 0)) {
-    pushBanner(event.label ?? "SCORE", `+${event.points} POINTS`, "score", 1100);
+    pushBanner(event.label ?? "SCORE", `+${event.points} POINTS`, "score", 2200);
   }
 }
 

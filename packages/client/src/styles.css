@@ -268,7 +268,7 @@ input:invalid {
 
 .boards {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 2fr 1fr;
   gap: 1rem;
   align-items: start;
 }
@@ -293,13 +293,21 @@ input:invalid {
 
 .canvas-wrap {
   position: relative;
-  width: min(100%, 240px, 24vw, calc(100vh - 18rem));
+  width: min(100%, 300px, 28vw, calc(100vh - 14rem));
   aspect-ratio: 1 / 2;
   margin: 0 auto;
   border-radius: 18px;
   overflow: hidden;
   background: rgba(1, 8, 15, 0.95);
   border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.board-card--opponent .canvas-wrap {
+  width: min(100%, 180px, 16vw, calc(100vh - 16rem));
+}
+
+.board-stage--solo {
+  display: block;
 }
 
 canvas {
@@ -455,6 +463,10 @@ canvas {
     width: min(100%, 220px, 42vw, calc(100vh - 16rem));
   }
 
+  .board-card--opponent .canvas-wrap {
+    width: min(100%, 180px, 36vw, calc(100vh - 16rem));
+  }
+
   .announcer-stack {
     width: calc(100% - 1.5rem);
   }
@@ -466,7 +478,11 @@ canvas {
 
 @media (max-height: 820px) {
   .canvas-wrap {
-    width: min(100%, 210px, 22vw, calc(100vh - 14rem));
+    width: min(100%, 260px, 24vw, calc(100vh - 12rem));
+  }
+
+  .board-card--opponent .canvas-wrap {
+    width: min(100%, 160px, 14vw, calc(100vh - 14rem));
   }
 }
 
@@ -583,26 +599,32 @@ canvas {
   z-index: 40;
   display: grid;
   place-items: center;
-  background: rgba(5, 10, 18, 0.88);
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(12px);
   border-radius: 24px;
-  animation: result-in 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  overflow: hidden;
+  animation: result-enter 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.result-screen--victory {
+  background:
+    radial-gradient(circle at 50% 40%, rgba(73, 220, 177, 0.18), transparent 60%),
+    rgba(5, 10, 18, 0.9);
+}
+
+.result-screen--defeat {
+  background:
+    radial-gradient(circle at 50% 30%, rgba(255, 107, 107, 0.14), transparent 55%),
+    rgba(5, 10, 18, 0.9);
 }
 
 .result-screen[hidden] {
   display: none;
 }
 
-@keyframes result-in {
-  from {
-    opacity: 0;
-    transform: scale(0.94);
-  }
-
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
+@keyframes result-enter {
+  0%   { opacity: 0; transform: scale(0.5) rotate(-4deg); }
+  65%  { opacity: 1; transform: scale(1.04) rotate(0.5deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0deg); }
 }
 
 .result-card {
@@ -689,4 +711,35 @@ canvas {
 
 .announcer-banner.fading {
   animation: announcer-fade 280ms ease forwards;
+}
+
+/* ── Result Screen Particles & Shake ──────────────────────── */
+@keyframes particle-fly {
+  0%   { opacity: 1; transform: translate(0, 0) scale(1); }
+  100% { opacity: 0; transform: translate(var(--tx), var(--ty)) scale(0.2); }
+}
+
+.result-particle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  border-radius: 50%;
+  background: var(--color);
+  animation: particle-fly 0.9s ease-out var(--delay) both;
+  pointer-events: none;
+}
+
+.result-card--defeat {
+  animation: result-shake 0.4s 0.3s ease both;
+}
+
+@keyframes result-shake {
+  0%,  100% { transform: translateX(0); }
+  20%        { transform: translateX(-12px); }
+  40%        { transform: translateX(10px); }
+  60%        { transform: translateX(-7px); }
+  80%        { transform: translateX(5px); }
 }
