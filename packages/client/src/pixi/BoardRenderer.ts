@@ -238,6 +238,8 @@ export class BoardRenderer {
       const ghostKind: CellKind = `ghost_${active.type}`;
       const ghostTex = this.textures.get(ghostKind, cs);
 
+      const ghostAlpha = Math.min(1, 1 - 0.75 / delta);
+
       activeCells.forEach(({ x, y }, i) => {
         const sp = this.ghostSprites[i]!;
         const gy = y + delta;
@@ -247,6 +249,7 @@ export class BoardRenderer {
           return;
         }
         sp.texture = ghostTex;
+        sp.alpha = ghostAlpha;
         sp.position.set(x * cs, vy * cs);
         sp.visible = true;
       });
