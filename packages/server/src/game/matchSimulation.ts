@@ -14,6 +14,21 @@ import {
   type PlayerSnapshot
 } from "@tetris-arena/shared";
 
+const DISAMBIG_WORDS = [
+  "Alpha", "Bravo", "Delta", "Echo", "Foxtrot",
+  "Golf", "Kilo", "Lima", "Mike", "Nova",
+  "Oscar", "Papa", "Romeo", "Sierra", "Tango",
+  "Uniform", "Victor", "Whiskey", "Xray", "Yankee"
+];
+
+function disambiguateWord(id: string): string {
+  let h = 5381;
+  for (let i = 0; i < id.length; i++) {
+    h = ((h * 33) ^ id.charCodeAt(i)) >>> 0;
+  }
+  return DISAMBIG_WORDS[h % DISAMBIG_WORDS.length]!;
+}
+
 interface SimPlayer {
   id: string;
   nickname: string;
@@ -111,13 +126,22 @@ export class MatchSimulation {
     const you = this.players.find((player) => player.id === forPlayerId) ?? this.players[0]!;
     const opponent = this.players.find((player) => player.id !== you.id) ?? this.players[1]!;
 
+    const youSnap = this.toSnapshot(you);
+    const opponentSnap = this.toSnapshot(opponent);
+
+    // Shadow workaround: when both players share the same callsign (case-insensitive),
+    // suffix the opponent's display name so each player can distinguish themselves.
+    if (youSnap.nickname.toLowerCase() === opponentSnap.nickname.toLowerCase()) {
+      opponentSnap.nickname = `${opponentSnap.nickname} - ${disambiguateWord(opponent.id)}`;
+    }
+
     return {
       matchId: this.matchId,
       status: this.finished ? "finished" : this.countdownMs > 0 ? "countdown" : "playing",
       winnerId: this.winnerId,
       loserId: this.loserId,
-      you: this.toSnapshot(you),
-      opponent: this.toSnapshot(opponent),
+      you: youSnap,
+      opponent: opponentSnap,
       countdownMs: this.countdownMs,
       message: this.finished
         ? `${this.players.find((player) => player.id === this.winnerId)?.nickname ?? "Winner"} wins`
