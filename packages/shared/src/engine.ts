@@ -94,18 +94,12 @@ function createSpawn(type: PieceType): ActivePiece {
     type,
     rotation: 0,
     x: 3,
-    y: -1
+    y: 0
   };
 }
 
-function spawnNextPiece(state: InternalPlayerState): void {
-  if (state.isTopOut) {
-    return;
-  }
-
-  const piece = createSpawn(nextPiece(state));
-  state.active = piece;
-  state.needsSpawn = false;
+function activatePiece(state: InternalPlayerState, type: PieceType): void {
+  const piece = createSpawn(type);
   state.lockTimerMs = 0;
   state.lockResets = 0;
   state.gravityTimerMs = 0;
@@ -113,7 +107,21 @@ function spawnNextPiece(state: InternalPlayerState): void {
   if (collides(state.board, piece)) {
     state.isTopOut = true;
     state.active = null;
+    return;
   }
+
+  // Official rule: immediately drop one row if path is clear
+  const dropped: ActivePiece = { ...piece, y: piece.y + 1 };
+  state.active = collides(state.board, dropped) ? piece : dropped;
+}
+
+function spawnNextPiece(state: InternalPlayerState): void {
+  if (state.isTopOut) {
+    return;
+  }
+
+  state.needsSpawn = false;
+  activatePiece(state, nextPiece(state));
 }
 
 function clearLines(board: CellValue[][]): { board: CellValue[][]; linesCleared: number } {
@@ -313,13 +321,7 @@ export function applyInputAction(state: InternalPlayerState, action: InputAction
       const held = state.hold;
       state.hold = state.active.type;
       state.canHold = false;
-      state.active = held ? createSpawn(held) : createSpawn(nextPiece(state));
-      state.gravityTimerMs = 0;
-      state.lockTimerMs = 0;
-      if (state.active && collides(state.board, state.active)) {
-        state.isTopOut = true;
-        state.active = null;
-      }
+      activatePiece(state, held ?? nextPiece(state));
       break;
     }
   }
