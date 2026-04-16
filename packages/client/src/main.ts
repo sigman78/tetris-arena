@@ -51,6 +51,7 @@ type BannerEntry = {
   subtitle?: string;
   tone: BannerTone;
   expiresAt: number;
+  fadingOut?: boolean;
 };
 
 type ScoreBurst = {
@@ -268,8 +269,9 @@ function renderLobby(): string {
                 <th>#</th>
                 <th>Player</th>
                 <th>Score</th>
-                <th>Wins</th>
-                <th>Plays</th>
+                <th>W</th>
+                <th>L</th>
+                <th>Win%</th>
               </tr>
             </thead>
             <tbody>
@@ -277,18 +279,24 @@ function renderLobby(): string {
                 state.leaderboard.length > 0
                   ? state.leaderboard
                       .map(
-                        (entry, index) => `
+                        (entry, index) => {
+                          const losses = entry.gamesPlayed - entry.wins;
+                          const winPct = entry.gamesPlayed > 0 ? Math.round((entry.wins / entry.gamesPlayed) * 100) : 0;
+                          const pctColor = winPct >= 60 ? `color:var(--accent)` : winPct <= 35 && entry.gamesPlayed > 0 ? `color:var(--danger)` : "";
+                          return `
                           <tr>
                             <td>${index + 1}</td>
                             <td>${escapeHtml(entry.nickname)}</td>
                             <td>${formatScore(entry.bestScore)}</td>
                             <td>${entry.wins}</td>
-                            <td>${entry.gamesPlayed}</td>
+                            <td>${losses}</td>
+                            <td style="${pctColor}">${entry.gamesPlayed > 0 ? `${winPct}%` : "—"}</td>
                           </tr>
-                        `
+                        `;
+                        }
                       )
                       .join("")
-                  : `<tr><td colspan="5" class="muted">No matches recorded yet.</td></tr>`
+                  : `<tr><td colspan="6" class="muted">No matches recorded yet.</td></tr>`
               }
             </tbody>
           </table>
@@ -313,6 +321,7 @@ function renderMatch(): string {
           </div>
         </div>
         <div id="announcer-stack" class="announcer-stack"></div>
+        <div id="result-screen" class="result-screen" hidden></div>
         <div class="boards">
           <article class="panel board-card">
             <div class="board-meta">
@@ -320,6 +329,7 @@ function renderMatch(): string {
                 <strong id="local-name">You</strong>
                 <div class="muted">Your board</div>
               </div>
+              <div id="local-b2b" class="b2b-badge"></div>
               <div id="local-pending" class="muted"></div>
             </div>
             <div class="board-stage">
@@ -338,6 +348,7 @@ function renderMatch(): string {
               <span><strong>Level</strong> <span id="local-level">1</span></span>
               <span><strong>Lines</strong> <span id="local-lines">0</span></span>
               <span><strong>Combo</strong> <span id="local-combo">0</span></span>
+              <span><strong>Attack</strong> <span id="local-attack">0</span></span>
             </div>
           </article>
           <article class="panel board-card">
@@ -346,6 +357,7 @@ function renderMatch(): string {
                 <strong id="opponent-name">Opponent</strong>
                 <div class="muted">Pressure meter</div>
               </div>
+              <div id="opponent-b2b" class="b2b-badge"></div>
               <div id="opponent-pending" class="muted"></div>
             </div>
             <div class="board-stage">
@@ -363,6 +375,7 @@ function renderMatch(): string {
               <span><strong>Level</strong> <span id="opponent-level">1</span></span>
               <span><strong>Lines</strong> <span id="opponent-lines">0</span></span>
               <span><strong>Combo</strong> <span id="opponent-combo">0</span></span>
+              <span><strong>Attack</strong> <span id="opponent-attack">0</span></span>
             </div>
           </article>
         </div>
@@ -379,8 +392,11 @@ function updateMatchView(): void {
   const snapshot = state.currentMatch;
   const title = document.querySelector<HTMLElement>("#match-title");
   const overlay = document.querySelector<HTMLElement>("#match-overlay");
+  const resultScreen = document.querySelector<HTMLElement>("#result-screen");
   const localName = document.querySelector<HTMLElement>("#local-name");
   const opponentName = document.querySelector<HTMLElement>("#opponent-name");
+  const localB2b = document.querySelector<HTMLElement>("#local-b2b");
+  const opponentB2b = document.querySelector<HTMLElement>("#opponent-b2b");
   const localPending = document.querySelector<HTMLElement>("#local-pending");
   const opponentPending = document.querySelector<HTMLElement>("#opponent-pending");
   const localScore = document.querySelector<HTMLElement>("#local-score");
@@ -395,12 +411,17 @@ function updateMatchView(): void {
   const localNext = document.querySelector<HTMLElement>("#local-next-slot");
   const opponentHold = document.querySelector<HTMLElement>("#opponent-hold-slot");
   const opponentNext = document.querySelector<HTMLElement>("#opponent-next-slot");
+  const localAttack = document.querySelector<HTMLElement>("#local-attack");
+  const opponentAttack = document.querySelector<HTMLElement>("#opponent-attack");
 
   if (
     !title ||
     !overlay ||
+    !resultScreen ||
     !localName ||
     !opponentName ||
+    !localB2b ||
+    !opponentB2b ||
     !localPending ||
     !opponentPending ||
     !localScore ||
@@ -414,9 +435,37 @@ function updateMatchView(): void {
     !localHold ||
     !localNext ||
     !opponentHold ||
-    !opponentNext
+    !opponentNext ||
+    !localAttack ||
+    !opponentAttack
   ) {
     return;
+  }
+
+  // Show result screen when match ends
+  if (state.result) {
+    const result = state.result;
+    const isVictory = snapshot ? result.winnerId === snapshot.you.playerId : false;
+    resultScreen.hidden = false;
+    resultScreen.innerHTML = `
+      <div class="result-card">
+        <div class="result-heading ${isVictory ? "tone-victory" : "tone-danger"}">${isVictory ? "VICTORY" : "DEFEAT"}</div>
+        <div class="result-winner">${escapeHtml(result.winnerNickname)}</div>
+        <div class="result-scores">
+          <div class="result-score-item">
+            <span class="result-score-label">${escapeHtml(result.winnerNickname)}</span>
+            <span class="result-score-value">${formatScore(result.winnerScore)}</span>
+          </div>
+          <div class="result-score-item">
+            <span class="result-score-label muted">Opponent</span>
+            <span class="result-score-value muted">${formatScore(result.loserScore)}</span>
+          </div>
+        </div>
+        <p class="muted result-note">Returning to lobby…</p>
+      </div>
+    `;
+  } else {
+    resultScreen.hidden = true;
   }
 
   if (!snapshot) {
@@ -434,6 +483,10 @@ function updateMatchView(): void {
   title.textContent = `${snapshot.you.nickname} vs ${snapshot.opponent.nickname}`;
   localName.textContent = snapshot.you.nickname;
   opponentName.textContent = snapshot.opponent.nickname;
+  localB2b.textContent = snapshot.you.backToBack ? "B2B" : "";
+  localB2b.classList.toggle("active", snapshot.you.backToBack);
+  opponentB2b.textContent = snapshot.opponent.backToBack ? "B2B" : "";
+  opponentB2b.classList.toggle("active", snapshot.opponent.backToBack);
   localPending.textContent = `Pending garbage ${snapshot.you.pendingGarbage}`;
   opponentPending.textContent = `Pending garbage ${snapshot.opponent.pendingGarbage}`;
   localScore.textContent = formatScore(snapshot.you.score);
@@ -444,9 +497,11 @@ function updateMatchView(): void {
   opponentLevel.textContent = String(snapshot.opponent.level);
   opponentLines.textContent = String(snapshot.opponent.linesClearedTotal);
   opponentCombo.textContent = String(snapshot.opponent.combo);
-  localHold.innerHTML = renderPiecePreview("Hold", snapshot.you.hold);
+  localAttack.textContent = String(snapshot.you.garbageSentTotal);
+  opponentAttack.textContent = String(snapshot.opponent.garbageSentTotal);
+  localHold.innerHTML = renderPiecePreview("Hold", snapshot.you.hold, !snapshot.you.canHold);
   localNext.innerHTML = renderPiecePreview("Next", snapshot.you.queue[0] ?? null);
-  opponentHold.innerHTML = renderPiecePreview("Hold", snapshot.opponent.hold);
+  opponentHold.innerHTML = renderPiecePreview("Hold", snapshot.opponent.hold, !snapshot.opponent.canHold);
   opponentNext.innerHTML = renderPiecePreview("Next", snapshot.opponent.queue[0] ?? null);
 
   overlay.hidden = snapshot.status !== "countdown" || !snapshot.message;
@@ -469,6 +524,15 @@ function processSnapshotTransitions(snapshot: MatchSnapshot): void {
     pushBanner("FIGHT", "Stack and survive", "start", 1100);
   }
 
+  // Countdown second-boundary pops
+  if (snapshot.status === "countdown" && previousSnapshot) {
+    const prevSec = Math.ceil(previousSnapshot.countdownMs / 1000);
+    const curSec = Math.ceil(snapshot.countdownMs / 1000);
+    if (curSec !== prevSec && curSec > 0) {
+      triggerCountdownPop();
+    }
+  }
+
   if (snapshot.you.lastScoringEvent && snapshot.you.lastScoringEvent.id > seenLocalScoreEventId) {
     seenLocalScoreEventId = snapshot.you.lastScoringEvent.id;
     pushScoreBurst("local", snapshot.you.lastScoringEvent);
@@ -480,6 +544,15 @@ function processSnapshotTransitions(snapshot: MatchSnapshot): void {
   }
 
   previousSnapshot = snapshot;
+}
+
+function triggerCountdownPop(): void {
+  const overlay = document.querySelector<HTMLElement>("#match-overlay");
+  if (!overlay) return;
+  overlay.classList.remove("countdown-pop");
+  // Force reflow so removing/re-adding the class restarts the animation
+  void overlay.offsetWidth;
+  overlay.classList.add("countdown-pop");
 }
 
 function bindLobbyActions(): void {
@@ -576,7 +649,7 @@ function renderAnnouncements(): void {
     announcer.innerHTML = banners
       .map(
         (banner) => `
-          <div class="announcer-banner tone-${banner.tone}">
+          <div class="announcer-banner tone-${banner.tone}${banner.fadingOut ? " fading" : ""}">
             <div class="announcer-title">${escapeHtml(banner.title)}</div>
             ${banner.subtitle ? `<div class="announcer-subtitle">${escapeHtml(banner.subtitle)}</div>` : ""}
           </div>
@@ -607,8 +680,16 @@ function renderAnnouncements(): void {
 }
 
 function pruneExpired(now: number): void {
-  while (banners.length > 0 && banners[0]!.expiresAt <= now) {
-    banners.shift();
+  for (let index = banners.length - 1; index >= 0; index -= 1) {
+    const banner = banners[index]!;
+    if (banner.expiresAt <= now) {
+      if (!banner.fadingOut) {
+        banner.fadingOut = true;
+        banner.expiresAt = now + 280;
+      } else {
+        banners.splice(index, 1);
+      }
+    }
   }
 
   for (let index = scoreBursts.length - 1; index >= 0; index -= 1) {

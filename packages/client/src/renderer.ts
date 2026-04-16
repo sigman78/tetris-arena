@@ -1,5 +1,6 @@
 import {
   BOARD_WIDTH,
+  BOARD_HEIGHT,
   HIDDEN_ROWS,
   PIECES,
   VISIBLE_ROWS,
@@ -94,6 +95,8 @@ export function drawBoard(
     }
   }
 
+  drawGhostPiece(context, snapshot, cellSize);
+
   context.strokeStyle = "rgba(255,255,255,0.08)";
   context.lineWidth = 1;
   for (let x = 0; x <= BOARD_WIDTH; x += 1) {
@@ -139,10 +142,10 @@ export function drawBoard(
   context.restore();
 }
 
-export function renderPiecePreview(label: string, piece: PieceType | null): string {
+export function renderPiecePreview(label: string, piece: PieceType | null, locked = false): string {
   const cells = piece ? getPreviewCells(piece) : [];
   return `
-    <section class="piece-panel">
+    <section class="piece-panel${locked ? " piece-panel--locked" : ""}">
       <span class="piece-label">${label}</span>
       <div class="piece-preview" aria-label="${label}">
         ${Array.from({ length: 16 }, (_, index) => {
@@ -154,6 +157,62 @@ export function renderPiecePreview(label: string, piece: PieceType | null): stri
       <strong class="piece-code">${piece ?? "—"}</strong>
     </section>
   `;
+}
+
+function drawGhostPiece(
+  context: CanvasRenderingContext2D,
+  snapshot: BoardSnapshot,
+  cellSize: number
+): void {
+  const { active, board } = snapshot;
+  if (!active) return;
+
+  const shape = PIECES[active.type][active.rotation]!;
+  const activeCells = shape.map((c) => ({ x: active.x + c.x, y: active.y + c.y }));
+  const activeCellKeys = new Set(activeCells.map((c) => `${c.x},${c.y}`));
+
+  // Find how far down the piece can drop
+  let delta = 0;
+  while (true) {
+    const nextDelta = delta + 1;
+    const wouldCollide = activeCells.some(({ x, y }) => {
+      const ny = y + nextDelta;
+      if (ny >= BOARD_HEIGHT) return true;
+      if (ny < 0) return false;
+      const cell = board[ny]?.[x];
+      return cell !== null && !activeCellKeys.has(`${x},${ny}`);
+    });
+    if (wouldCollide) break;
+    delta = nextDelta;
+  }
+
+  if (delta === 0) return; // piece already on the floor, ghost = active
+
+  const color = COLORS[active.type];
+  // Parse hex to rgb for rgba() usage
+  const r = parseInt(color.slice(1, 3), 16);
+  const g = parseInt(color.slice(3, 5), 16);
+  const b = parseInt(color.slice(5, 7), 16);
+
+  for (const { x, y } of activeCells) {
+    const ghostY = y + delta;
+    const visibleY = ghostY - HIDDEN_ROWS;
+    if (visibleY < 0 || visibleY >= VISIBLE_ROWS) continue;
+
+    const px = x * cellSize;
+    const py = visibleY * cellSize;
+    const inner = Math.max(1, cellSize - 2);
+
+    context.save();
+    context.globalAlpha = 0.18;
+    context.fillStyle = color;
+    context.fillRect(px + 1, py + 1, inner, inner);
+    context.globalAlpha = 0.55;
+    context.strokeStyle = `rgb(${r},${g},${b})`;
+    context.lineWidth = 1;
+    context.strokeRect(px + 1.5, py + 1.5, Math.max(1, cellSize - 3), Math.max(1, cellSize - 3));
+    context.restore();
+  }
 }
 
 function drawCell(
