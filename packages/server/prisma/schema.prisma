@@ -1,0 +1,20 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model PlayerRecord {
+  id                 Int      @id @default(autoincrement())
+  nickname           String
+  normalizedNickname String   @unique
+  bestScore          Int      @default(0)
+  wins               Int      @default(0)
+  losses             Int      @default(0)
+  gamesPlayed        Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}

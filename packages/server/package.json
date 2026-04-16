@@ -1,0 +1,30 @@
+{
+  "name": "@tetris-arena/server",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "npm run build -w @tetris-arena/shared && prisma generate && tsc -b",
+    "dev": "npm run build -w @tetris-arena/shared && prisma generate && tsx watch src/index.ts",
+    "test": "npm run build -w @tetris-arena/shared && vitest run",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push"
+  },
+  "dependencies": {
+    "@colyseus/core": "^0.17.41",
+    "@colyseus/ws-transport": "^0.17.13",
+    "@prisma/client": "^6.7.0",
+    "@tetris-arena/shared": "0.1.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.1",
+    "@types/node": "^24.7.2",
+    "prisma": "^6.7.0",
+    "tsx": "^4.20.6",
+    "vitest": "^3.2.4"
+  }
+}

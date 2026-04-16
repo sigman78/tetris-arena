@@ -1,0 +1,17 @@
+{
+  "name": "@tetris-arena/client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "npm run build -w @tetris-arena/shared && tsc -b && vite build",
+    "dev": "npm run build -w @tetris-arena/shared && vite"
+  },
+  "dependencies": {
+    "@tetris-arena/shared": "0.1.0",
+    "colyseus.js": "^0.16.22"
+  },
+  "devDependencies": {
+    "vite": "^7.1.10"
+  }
+}
