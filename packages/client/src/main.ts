@@ -87,6 +87,7 @@ let previousSnapshot: MatchSnapshot | null = null;
 let seenLocalScoreEventId = 0;
 let seenOpponentScoreEventId = 0;
 let announcementId = 0;
+let matchStartTime = 0;
 const banners: BannerEntry[] = [];
 const scoreBursts: ScoreBurst[] = [];
 const scoreTickRafs = new Map<string, number>();
@@ -218,49 +219,80 @@ function render(): void {
 }
 
 function renderLobby(): string {
+  const medals = ["🥇", "🥈", "🥉"];
+  const rows = state.leaderboard.length > 0
+    ? state.leaderboard.map((entry, index) => {
+        const losses = entry.gamesPlayed - entry.wins;
+        const winPct = entry.gamesPlayed > 0 ? Math.round((entry.wins / entry.gamesPlayed) * 100) : 0;
+        const pctColor = winPct >= 60 ? `color:var(--accent)` : winPct <= 35 && entry.gamesPlayed > 0 ? `color:var(--danger)` : "";
+        const isMe = entry.nickname === state.nickname.trim();
+        const rank = index < 3 ? medals[index] : String(index + 1);
+        return `
+          <tr class="${isMe ? "leaderboard-me" : ""}">
+            <td>${rank}</td>
+            <td>${escapeHtml(entry.nickname)}</td>
+            <td class="stat-value" style="font-size:0.9rem">${formatScore(entry.bestScore)}</td>
+            <td>${entry.wins}</td>
+            <td>${losses}</td>
+            <td style="${pctColor}">${entry.gamesPlayed > 0 ? `${winPct}%` : "—"}</td>
+          </tr>
+        `;
+      }).join("")
+    : `<tr><td colspan="6" class="muted" style="text-align:center;padding:1.5rem 0">No matches recorded yet.</td></tr>`;
+
   return `
     <main class="shell">
       <section class="hero">
+
         <div class="panel stack">
-          <div>
-            <p class="subtitle">Browser PvP survival Tetris</p>
-            <h1 class="title">Tetris Arena</h1>
-            <p class="muted">Clear lines, pressure your opponent, and survive the garbage war.</p>
+          <div class="lobby-brand">
+            <p class="stat-label" style="margin:0 0 0.35rem">ONLINE PVP · KEYBOARD</p>
+            <h1 class="title">Tetris<br>Arena</h1>
+            <p class="muted" style="margin-top:0.35rem">Clear lines, pressure your opponent, survive the garbage war.</p>
           </div>
-          <label class="stack">
-            <span>Handle</span>
-            <input id="nickname" maxlength="18" placeholder="Enter your nickname" value="${escapeHtml(state.nickname)}" />
-          </label>
-          <div class="row">
-            <button id="queue-btn" ${state.queueStatus.inQueue ? "disabled" : ""}>${state.queueStatus.inQueue ? "SEARCHING" : "Join Queue"}</button>
-            <button id="leave-btn" class="secondary" ${state.queueStatus.inQueue ? "" : "disabled"}>Leave Queue</button>
+
+          <div class="stack lobby-setup">
+            <div class="stat-label">CALLSIGN</div>
+            <input id="nickname" maxlength="18" placeholder="Enter your nickname…" value="${escapeHtml(state.nickname)}" />
           </div>
-          <div class="status-pill ${state.error ? "error" : state.queueStatus.inQueue ? "queueing" : ""}">
-            ${
-              state.error
-                ? escapeHtml(state.error)
+
+          <div class="stack" style="gap:0.55rem">
+            <div class="row">
+              <button id="queue-btn" ${state.queueStatus.inQueue || !state.lobbyRoom ? "disabled" : ""}>${state.queueStatus.inQueue ? "SEARCHING…" : "Find Match"}</button>
+              <button id="leave-btn" class="secondary" ${state.queueStatus.inQueue ? "" : "disabled"}>Leave</button>
+            </div>
+            <div class="status-pill ${state.error ? "error" : state.queueStatus.inQueue ? "queueing" : ""}">
+              ${state.error
+                ? `<span>${escapeHtml(state.error)}</span><button id="retry-btn" class="secondary" style="padding:0.2rem 0.7rem;font-size:0.72rem;margin-left:0.5rem">Retry</button>`
                 : state.queueStatus.inQueue
-                  ? `<span class="queue-radar"><span></span><span></span><span></span></span><span>Scanning for rival</span>`
-                  : "Ready for the public queue"
-            }
+                  ? `<span class="queue-radar"><span></span><span></span><span></span></span><span>Scanning for rival…</span>`
+                  : "Ready — enter your callsign and join"}
+            </div>
           </div>
-          <div class="hud">
-            <span><strong>${state.queueStatus.queueSize}</strong> players waiting</span>
-            <span><strong>Desktop</strong> keyboard controls</span>
-          </div>
-          <div class="controls">
-            <span>Move: Arrow keys</span>
-            <span>Rotate: X / Z</span>
-            <span>Soft drop: Arrow down</span>
-            <span>Hard drop: Space</span>
-            <span>Hold: Shift / C</span>
+
+          <div class="lobby-meta">
+            <div>
+              <div class="stat-label">PLAYERS WAITING</div>
+              <div class="stat-value">${state.queueStatus.queueSize}</div>
+            </div>
+            <div class="lobby-keys">
+              <div class="stat-label" style="margin-bottom:0.4rem">CONTROLS</div>
+              <div class="controls">
+                <span>Move ←→</span>
+                <span>Rotate X / Z</span>
+                <span>Soft drop ↓</span>
+                <span>Hard drop Space</span>
+                <span>Hold Shift / C</span>
+              </div>
+            </div>
           </div>
         </div>
+
         <div class="panel">
-          <div class="row" style="justify-content: space-between;">
+          <div class="lobby-records-header">
             <div>
-              <h2 style="margin: 0;">Arena Records</h2>
-              <p class="muted">Ranked by best match score</p>
+              <h2 class="lobby-records-title">Arena Records</h2>
+              <p class="muted" style="margin:0.15rem 0 0">Ranked by best match score</p>
             </div>
             <div class="status-pill">Top ${state.leaderboard.length}</div>
           </div>
@@ -275,33 +307,10 @@ function renderLobby(): string {
                 <th>Win%</th>
               </tr>
             </thead>
-            <tbody>
-              ${
-                state.leaderboard.length > 0
-                  ? state.leaderboard
-                      .map(
-                        (entry, index) => {
-                          const losses = entry.gamesPlayed - entry.wins;
-                          const winPct = entry.gamesPlayed > 0 ? Math.round((entry.wins / entry.gamesPlayed) * 100) : 0;
-                          const pctColor = winPct >= 60 ? `color:var(--accent)` : winPct <= 35 && entry.gamesPlayed > 0 ? `color:var(--danger)` : "";
-                          return `
-                          <tr>
-                            <td>${index + 1}</td>
-                            <td>${escapeHtml(entry.nickname)}</td>
-                            <td>${formatScore(entry.bestScore)}</td>
-                            <td>${entry.wins}</td>
-                            <td>${losses}</td>
-                            <td style="${pctColor}">${entry.gamesPlayed > 0 ? `${winPct}%` : "—"}</td>
-                          </tr>
-                        `;
-                        }
-                      )
-                      .join("")
-                  : `<tr><td colspan="6" class="muted">No matches recorded yet.</td></tr>`
-              }
-            </tbody>
+            <tbody>${rows}</tbody>
           </table>
         </div>
+
       </section>
     </main>
   `;
@@ -311,67 +320,110 @@ function renderMatch(): string {
   return `
     <main class="shell match-shell">
       <section class="game">
-        <div class="panel game-header">
-          <div>
-            <p class="subtitle">Match Arena</p>
-            <h2 id="match-title" style="margin: 0;">Connecting...</h2>
+
+        <div class="players-bar panel">
+          <div class="player-pill">
+            <div class="player-pill-name" id="local-name">You</div>
+            <div class="player-pill-live"><span class="live-dot"></span>LIVE</div>
+            <div id="local-b2b" class="b2b-badge"></div>
           </div>
-          <div class="hud">
-            <span><strong>Hold</strong> Shift / C</span>
-            <span><strong>Drop</strong> Space</span>
+          <div class="players-bar-center">
+            <div class="players-bar-vs">VS</div>
+          </div>
+          <div class="player-pill player-pill--right">
+            <div id="opponent-b2b" class="b2b-badge"></div>
+            <div class="player-pill-name" id="opponent-name">Opponent</div>
           </div>
         </div>
+
         <div id="announcer-stack" class="announcer-stack"></div>
         <div id="result-screen" class="result-screen" hidden></div>
-        <div class="boards">
-          <article class="panel board-card">
-            <div class="board-meta">
-              <div>
-                <strong id="local-name">You</strong>
-                <div class="muted">Your board</div>
-              </div>
-              <div id="local-b2b" class="b2b-badge"></div>
-              <div id="local-pending" class="muted"></div>
+
+        <div class="arena">
+
+          <aside class="arena-stats">
+            <div class="stat-item">
+              <div class="stat-label">LINES</div>
+              <div class="stat-value" id="local-lines">0</div>
             </div>
-            <div class="board-stage">
-              <div class="canvas-wrap">
-                <canvas id="local-board"></canvas>
-                <div id="local-bursts" class="score-bursts score-bursts-local"></div>
-                <div id="match-overlay" class="overlay" hidden></div>
-              </div>
-              <aside class="piece-rail">
-                <div id="local-hold-slot"></div>
-                <div id="local-next-slot"></div>
-              </aside>
+            <div class="stat-item">
+              <div class="stat-label">LEVEL</div>
+              <div class="stat-value" id="local-level">1</div>
             </div>
-            <div class="hud board-stats">
-              <span><strong>Score</strong> <span id="local-score">0</span></span>
-              <span><strong>Level</strong> <span id="local-level">1</span></span>
-              <span><strong>Lines</strong> <span id="local-lines">0</span></span>
-              <span><strong>Combo</strong> <span id="local-combo">0</span></span>
-              <span><strong>Attack</strong> <span id="local-attack">0</span></span>
+            <div class="stat-item stat-item--score">
+              <div class="stat-label">SCORE</div>
+              <div class="stat-value" id="local-score">0</div>
             </div>
-          </article>
-          <article class="panel board-card board-card--opponent">
-            <div class="board-meta">
-              <div>
-                <strong id="opponent-name">Opponent</strong>
-                <div class="muted">Rival board</div>
-              </div>
-              <div id="opponent-b2b" class="b2b-badge"></div>
-              <div id="opponent-pending" class="muted"></div>
+            <div class="stat-item">
+              <div class="stat-label">COMBO</div>
+              <div class="stat-value" id="local-combo">—</div>
             </div>
-            <div class="board-stage board-stage--solo">
-              <div class="canvas-wrap">
-                <canvas id="opponent-board"></canvas>
-                <div id="opponent-bursts" class="score-bursts score-bursts-opponent"></div>
-              </div>
+            <div class="stat-item">
+              <div class="stat-label">SENT</div>
+              <div class="stat-value" id="local-attack">0</div>
             </div>
-            <div class="hud board-stats">
-              <span><strong>Score</strong> <span id="opponent-score">0</span></span>
+          </aside>
+
+          <div class="board-col">
+            <div id="local-pending" class="pending-strip"></div>
+            <div class="canvas-wrap">
+              <canvas id="local-board"></canvas>
+              <div id="local-bursts" class="score-bursts score-bursts-local"></div>
+              <div id="match-overlay" class="overlay" hidden></div>
             </div>
-          </article>
+          </div>
+
+          <div class="arena-center">
+            <div id="local-hold-slot"></div>
+            <div id="local-next-slot"></div>
+            <div class="center-sep"></div>
+            <div class="center-trash">
+              <div class="stat-label">INCOMING</div>
+              <div id="local-pending-n" class="trash-n">—</div>
+              <div class="trash-arrows-icon">⇵</div>
+              <div id="opponent-pending-n" class="trash-n muted">—</div>
+              <div class="stat-label">SENDING</div>
+            </div>
+          </div>
+
+          <div class="board-col">
+            <div id="opponent-pending" class="pending-strip pending-strip--right"></div>
+            <div class="canvas-wrap canvas-wrap--sm">
+              <canvas id="opponent-board"></canvas>
+              <div id="opponent-bursts" class="score-bursts score-bursts-opponent"></div>
+            </div>
+          </div>
+
+          <aside class="arena-stats arena-stats--right">
+            <div class="stat-item">
+              <div class="stat-label">LINES</div>
+              <div class="stat-value muted" id="opponent-lines">0</div>
+            </div>
+            <div class="stat-item stat-item--score">
+              <div class="stat-label">SCORE</div>
+              <div class="stat-value" id="opponent-score">0</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">COMBO</div>
+              <div class="stat-value muted" id="opponent-combo">—</div>
+            </div>
+          </aside>
+
         </div>
+
+        <div class="match-footer panel">
+          <div class="match-time-block">
+            <span class="stat-label">TIME</span>
+            <span id="match-time-val" class="match-time-val">0:00</span>
+          </div>
+          <div class="hud">
+            <span><strong>Move</strong> ←→↓</span>
+            <span><strong>Rotate</strong> X / Z</span>
+            <span><strong>Drop</strong> Space</span>
+            <span><strong>Hold</strong> Shift / C</span>
+          </div>
+        </div>
+
       </section>
     </main>
   `;
@@ -423,7 +475,6 @@ function updateMatchView(): void {
   }
 
   const snapshot = state.currentMatch;
-  const title = document.querySelector<HTMLElement>("#match-title");
   const overlay = document.querySelector<HTMLElement>("#match-overlay");
   const resultScreen = document.querySelector<HTMLElement>("#result-screen");
   const localName = document.querySelector<HTMLElement>("#local-name");
@@ -436,13 +487,18 @@ function updateMatchView(): void {
   const localLevel = document.querySelector<HTMLElement>("#local-level");
   const localLines = document.querySelector<HTMLElement>("#local-lines");
   const localCombo = document.querySelector<HTMLElement>("#local-combo");
+  const localAttack = document.querySelector<HTMLElement>("#local-attack");
   const opponentScore = document.querySelector<HTMLElement>("#opponent-score");
   const localHold = document.querySelector<HTMLElement>("#local-hold-slot");
   const localNext = document.querySelector<HTMLElement>("#local-next-slot");
-  const localAttack = document.querySelector<HTMLElement>("#local-attack");
+  // Optional elements (no null guard)
+  const opponentLines = document.querySelector<HTMLElement>("#opponent-lines");
+  const opponentCombo = document.querySelector<HTMLElement>("#opponent-combo");
+  const localPendingN = document.querySelector<HTMLElement>("#local-pending-n");
+  const opponentPendingN = document.querySelector<HTMLElement>("#opponent-pending-n");
+  const matchTimeEl = document.querySelector<HTMLElement>("#match-time-val");
 
   if (
-    !title ||
     !overlay ||
     !resultScreen ||
     !localName ||
@@ -455,15 +511,15 @@ function updateMatchView(): void {
     !localLevel ||
     !localLines ||
     !localCombo ||
+    !localAttack ||
     !opponentScore ||
     !localHold ||
-    !localNext ||
-    !localAttack
+    !localNext
   ) {
     return;
   }
 
-  // Show result screen when match ends
+  // Result screen
   if (state.result) {
     const result = state.result;
     const isVictory = snapshot ? result.winnerId === snapshot.you.playerId : false;
@@ -506,7 +562,6 @@ function updateMatchView(): void {
   }
 
   if (!snapshot) {
-    title.textContent = "Connecting...";
     overlay.hidden = false;
     overlay.innerHTML = "CONNECTING";
     localHold.innerHTML = renderPiecePreview("Hold", null);
@@ -515,26 +570,44 @@ function updateMatchView(): void {
     return;
   }
 
-  title.textContent = `${snapshot.you.nickname} vs ${snapshot.opponent.nickname}`;
   localName.textContent = snapshot.you.nickname;
   opponentName.textContent = snapshot.opponent.nickname;
   localB2b.textContent = snapshot.you.backToBack ? "B2B" : "";
   localB2b.classList.toggle("active", snapshot.you.backToBack);
   opponentB2b.textContent = snapshot.opponent.backToBack ? "B2B" : "";
   opponentB2b.classList.toggle("active", snapshot.opponent.backToBack);
-  localPending.textContent = `Pending garbage ${snapshot.you.pendingGarbage}`;
-  opponentPending.textContent = `Pending garbage ${snapshot.opponent.pendingGarbage}`;
+
+  const localPendingVal = snapshot.you.pendingGarbage;
+  localPending.textContent = localPendingVal > 0 ? `⚠ ${localPendingVal} incoming` : "";
+  localPending.classList.toggle("pending-strip--active", localPendingVal > 0);
+
+  const opponentPendingVal = snapshot.opponent.pendingGarbage;
+  opponentPending.textContent = opponentPendingVal > 0 ? `⚠ ${opponentPendingVal} incoming` : "";
+  opponentPending.classList.toggle("pending-strip--active", opponentPendingVal > 0);
+
+  if (localPendingN) localPendingN.textContent = localPendingVal > 0 ? String(localPendingVal) : "—";
+  if (opponentPendingN) opponentPendingN.textContent = opponentPendingVal > 0 ? String(opponentPendingVal) : "—";
+
   tickScoreTo(localScore, snapshot.you.score);
   localLevel.textContent = String(snapshot.you.level);
   localLines.textContent = String(snapshot.you.linesClearedTotal);
-  localCombo.textContent = String(snapshot.you.combo);
-  tickScoreTo(opponentScore, snapshot.opponent.score);
+  localCombo.textContent = snapshot.you.combo > 1 ? `${snapshot.you.combo}×` : "—";
   localAttack.textContent = String(snapshot.you.garbageSentTotal);
+
+  tickScoreTo(opponentScore, snapshot.opponent.score);
+  if (opponentLines) opponentLines.textContent = String(snapshot.opponent.linesClearedTotal);
+  if (opponentCombo) opponentCombo.textContent = snapshot.opponent.combo > 1 ? `${snapshot.opponent.combo}×` : "—";
+
   localHold.innerHTML = renderPiecePreview("Hold", snapshot.you.hold, !snapshot.you.canHold);
   localNext.innerHTML = renderPiecePreview("Next", snapshot.you.queue[0] ?? null);
 
   overlay.hidden = snapshot.status !== "countdown" || !snapshot.message;
   overlay.innerHTML = snapshot.status === "countdown" && snapshot.message ? escapeHtml(snapshot.message.toUpperCase()) : "";
+
+  if (matchTimeEl && matchStartTime > 0 && snapshot.status === "playing") {
+    const elapsed = Math.floor((performance.now() - matchStartTime) / 1000);
+    matchTimeEl.textContent = formatMatchTime(elapsed);
+  }
 
   drawBoards();
   renderAnnouncements();
@@ -550,6 +623,7 @@ function processSnapshotTransitions(snapshot: MatchSnapshot): void {
   }
 
   if (previousSnapshot?.status === "countdown" && snapshot.status === "playing") {
+    matchStartTime = performance.now();
     pushBanner("FIGHT", "Stack and survive", "start", 2400);
   }
 
@@ -609,6 +683,15 @@ function bindLobbyActions(): void {
 
   leaveButton?.addEventListener("click", () => {
     state.lobbyRoom?.send(LOBBY_MESSAGES.leaveQueue);
+  });
+
+  document.querySelector("#retry-btn")?.addEventListener("click", () => {
+    state.error = null;
+    render();
+    void connectLobby().catch((err) => {
+      state.error = err instanceof Error ? err.message : "Connection failed.";
+      render();
+    });
   });
 }
 
@@ -771,6 +854,7 @@ function resetAnnouncements(): void {
   previousSnapshot = null;
   seenLocalScoreEventId = 0;
   seenOpponentScoreEventId = 0;
+  matchStartTime = 0;
 }
 
 function mapKeyToAction(event: KeyboardEvent): InputAction | null {
@@ -863,6 +947,12 @@ function normalizeSeatReservation(reservation: unknown): LegacySeatReservation {
 
 function formatScore(value: number): string {
   return value.toLocaleString();
+}
+
+function formatMatchTime(seconds: number): string {
+  const min = Math.floor(seconds / 60);
+  const sec = seconds % 60;
+  return `${min}:${sec.toString().padStart(2, "0")}`;
 }
 
 function escapeHtml(value: string): string {
