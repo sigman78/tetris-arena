@@ -151,8 +151,29 @@ function tryMove(state: InternalPlayerState, dx: number, dy: number): boolean {
   state.active = candidate;
   if (!isGrounded(state.board, candidate)) {
     state.lockTimerMs = 0;
+  } else if (dx !== 0 && state.lockResets < MAX_LOCK_RESETS) {
+    state.lockResets += 1;
+    state.lockTimerMs = 0;
   }
   return true;
+}
+
+function detectTSpin(board: CellValue[][], piece: ActivePiece): boolean {
+  if (piece.type !== "T") return false;
+
+  const cx = piece.x + 1;
+  const cy = piece.y + 1;
+  let filled = 0;
+
+  for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) {
+    const x = cx + dx;
+    const y = cy + dy;
+    if (x < 0 || x >= BOARD_WIDTH || y < 0 || y >= BOARD_HEIGHT || board[y]?.[x] !== null) {
+      filled += 1;
+    }
+  }
+
+  return filled >= 3;
 }
 
 function rotate(state: InternalPlayerState, direction: 1 | -1): boolean {
@@ -198,15 +219,18 @@ function lockPiece(state: InternalPlayerState): GameplayResolution {
   }
 
   const piece = state.active;
+
+  // Detect T-spin BEFORE merging — needs empty board corners for the 3-corner check
+  const isTSpin = detectTSpin(state.board, piece);
+
   state.board = mergePiece(state.board, piece);
   const { board, linesCleared } = clearLines(state.board);
   state.board = board;
   state.linesClearedTotal += linesCleared;
   state.piecesLocked += 1;
 
-  const qualifiesB2B = piece.type === "T" || linesCleared >= 4;
+  const qualifiesB2B = (isTSpin && linesCleared > 0) || linesCleared >= 4;
   state.combo = linesCleared > 0 ? state.combo + 1 : 0;
-  const isTSpin = piece.type === "T" && qualifiesB2B && linesCleared > 0;
   const attackSent = calculateAttack({
     linesCleared,
     isTSpin,
@@ -240,7 +264,8 @@ function lockPiece(state: InternalPlayerState): GameplayResolution {
   state.gravityTimerMs = 0;
   state.needsSpawn = true;
 
-  if (piece.y < 0 && linesCleared === 0) {
+  // Lock-out: all cells locked above the skyline (in hidden rows)
+  if (linesCleared === 0 && getCells(piece).every(c => c.y < HIDDEN_ROWS)) {
     state.isTopOut = true;
   }
 
@@ -304,9 +329,7 @@ export function applyInputAction(state: InternalPlayerState, action: InputAction
       rotate(state, -1);
       break;
     case "softDrop":
-      if (!tryMove(state, 0, 1)) {
-        return lockPiece(state);
-      }
+      tryMove(state, 0, 1);
       break;
     case "hardDrop":
       while (tryMove(state, 0, 1)) {
