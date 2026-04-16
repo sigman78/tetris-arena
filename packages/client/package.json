@@ -9,7 +9,8 @@
   },
   "dependencies": {
     "@tetris-arena/shared": "0.1.0",
-    "colyseus.js": "^0.16.22"
+    "colyseus.js": "^0.16.22",
+    "pixi.js": "^8.0.0"
   },
   "devDependencies": {
     "vite": "^7.1.10"
