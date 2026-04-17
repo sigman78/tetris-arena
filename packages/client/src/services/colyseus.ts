@@ -11,6 +11,7 @@ import type {
 } from "@tetris-arena/shared";
 import { view } from "../stores/app.js";
 import {
+  lobbyConnected,
   queueStatus,
   ping,
   lobbyError,
@@ -43,6 +44,7 @@ export async function connectLobby(): Promise<void> {
 
   const room = await client.joinOrCreate("lobby");
   lobbyRoom = room;
+  lobbyConnected.set(true);
 
   // Queue status updates
   room.onMessage(LOBBY_MESSAGES.queueStatus, (payload: QueueStatusPayload) => {
@@ -84,6 +86,7 @@ export async function connectLobby(): Promise<void> {
   // Lobby leave cleanup
   room.onLeave(() => {
     lobbyRoom = null;
+    lobbyConnected.set(false);
     if (pingInterval !== null) {
       clearInterval(pingInterval);
       pingInterval = null;
@@ -144,4 +147,5 @@ export function sendMatchInput(action: InputAction): void {
 export function disconnectLobby(): void {
   lobbyRoom?.leave().catch(() => { /* intentional disconnect */ });
   lobbyRoom = null;
+  lobbyConnected.set(false);
 }

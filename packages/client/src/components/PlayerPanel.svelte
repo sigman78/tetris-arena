@@ -1,13 +1,9 @@
 <script lang="ts">
   import { nickname } from '../stores/app.js';
-  import { queueStatus, lobbyError } from '../stores/lobby.js';
+  import { lobbyConnected, queueStatus, lobbyError } from '../stores/lobby.js';
   import { sendJoinQueue, sendLeaveQueue, connectLobby } from '../services/colyseus.js';
   import QueueStatus from './QueueStatus.svelte';
   import ServerStats from './ServerStats.svelte';
-
-  // Whether the lobby room is connected — PlayerPanel gets this passed in as a prop
-  // since the connection state lives in the service module (not a store)
-  export let connected = false;
 
   function handleJoinQueue() {
     const nick = $nickname.trim();
@@ -55,7 +51,7 @@
   <div class="row">
     <button
       class="primary"
-      disabled={$queueStatus.inQueue || !connected}
+      disabled={$queueStatus.inQueue || !$lobbyConnected}
       on:click={handleJoinQueue}
     >
       {$queueStatus.inQueue ? 'SEARCHING…' : 'FIND MATCH'}
