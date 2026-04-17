@@ -179,16 +179,7 @@ input::placeholder {
   align-items: center;
 }
 
-/* ── Stat columns ─────────────────────────────────────────── */
-.stat-item {
-  display: grid;
-  gap: 0.06rem;
-}
-
-.stat-item--score .stat-value {
-  font-size: 1.1rem;
-}
-
+/* ── Stat label / value (shared across lobby + match) ─────── */
 .stat-label {
   font-size: 0.56rem;
   font-weight: 700;
@@ -215,6 +206,7 @@ canvas {
 }
 
 /* ── Responsive ───────────────────────────────────────────── */
+/* Match-specific responsive rules live in MatchView.svelte and BoardCanvas.svelte */
 @media (max-width: 960px) {
   .hero {
     grid-template-columns: 1fr;
@@ -222,50 +214,5 @@ canvas {
 
   .shell {
     padding: 1rem;
-  }
-
-  .arena {
-    grid-template-columns: 56px minmax(0, 1fr) 88px minmax(0, 0.65fr) 50px;
-    gap: 0.5rem;
-  }
-
-  .canvas-wrap {
-    width: min(100%, 200px, 38vw, calc(100vh - 15rem));
-  }
-
-  .canvas-wrap--sm {
-    width: min(100%, 148px, 28vw, calc(100vh - 15rem));
-  }
-
-  .arena-stats {
-    gap: 0.75rem;
-    padding-top: 0.75rem;
-  }
-
-  .players-bar {
-    padding: 0.65rem 1rem;
-  }
-
-  .announcer-stack {
-    width: calc(100% - 1.5rem);
-    min-width: 0;
-  }
-
-  .announcer-banner {
-    min-width: 0;
-  }
-
-  .announcer-banner--hero {
-    min-width: 0;
-  }
-}
-
-@media (max-height: 820px) {
-  .canvas-wrap {
-    width: min(100%, 220px, 22vw, calc(100vh - 11rem));
-  }
-
-  .canvas-wrap--sm {
-    width: min(100%, 158px, 15vw, calc(100vh - 12rem));
   }
 }

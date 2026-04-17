@@ -81,9 +81,5 @@
 
   .queue-radar span:nth-child(2) { animation-delay: 0.15s; }
   .queue-radar span:nth-child(3) { animation-delay: 0.3s; }
-
-  @keyframes queue-pulse {
-    0%, 100% { transform: scale(0.65); opacity: 0.35; }
-    50%       { transform: scale(1); opacity: 1; }
-  }
+  /* queue-pulse @keyframes lives in styles/animations.css */
 </style>

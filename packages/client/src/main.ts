@@ -1,4 +1,3 @@
-import './styles.css';
 import './styles/global.css';
 import './styles/animations.css';
 import App from './App.svelte';
