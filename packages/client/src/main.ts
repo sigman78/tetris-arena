@@ -1,4 +1,4 @@
-import { Client, Room } from "colyseus.js";
+import { Client, Room } from "@colyseus/sdk";
 import {
   LOBBY_MESSAGES,
   MATCH_MESSAGES,
@@ -9,7 +9,6 @@ import {
   type MatchFoundPayload,
   type MatchResultPayload,
   type ScoringEvent,
-  type SeatReservation,
   type QueueStatusPayload,
   type MatchSnapshot,
   type PieceType
@@ -37,14 +36,6 @@ const storageKey = "tetris-arena:nickname";
 type ViewState = "lobby" | "match";
 type BurstSide = "local" | "opponent";
 
-type LegacySeatReservation = {
-  room: { name: string; roomId: string; processId?: string; publicAddress?: string };
-  sessionId: string;
-  protocol?: string;
-  reconnectionToken?: string;
-  devMode?: boolean;
-};
-
 // ── App state ─────────────────────────────────────────────────
 const state = {
   view: "lobby" as ViewState,
@@ -56,6 +47,8 @@ const state = {
   lobbySnapshot: null as LobbySnapshot | null,
   queueJoinTime: null as number | null,
   queueTickInterval: null as ReturnType<typeof setInterval> | null,
+  pingMs: null as number | null,
+  pingInterval: null as ReturnType<typeof setInterval> | null,
   currentMatch: null as MatchSnapshot | null,
   result: null as MatchResultPayload | null,
   error: null as string | null
@@ -96,8 +89,7 @@ async function refreshLeaderboard(): Promise<void> {
 async function connectLobby(): Promise<void> {
   if (state.lobbyRoom) return;
 
-  const reservation = await requestSeatReservation("lobby");
-  const room = await colyseusClient.consumeSeatReservation(reservation as never);
+  const room = await colyseusClient.joinOrCreate("lobby");
   state.lobbyRoom = room;
 
   room.onMessage(LOBBY_MESSAGES.queueStatus, (payload: QueueStatusPayload) => {
@@ -126,6 +118,15 @@ async function connectLobby(): Promise<void> {
     render();
   });
 
+  const doPing = (): void => {
+    room.ping((latency) => {
+      state.pingMs = latency;
+      render();
+    });
+  };
+  doPing();
+  state.pingInterval = setInterval(doPing, 5000);
+
   room.onMessage(LOBBY_MESSAGES.matchFound, async (payload: MatchFoundPayload) => {
     state.error = null;
     state.queueStatus.inQueue = false;
@@ -138,6 +139,11 @@ async function connectLobby(): Promise<void> {
 
   room.onLeave(() => {
     state.lobbyRoom = null;
+    if (state.pingInterval !== null) {
+      clearInterval(state.pingInterval);
+      state.pingInterval = null;
+    }
+    state.pingMs = null;
   });
 }
 
@@ -149,9 +155,7 @@ async function connectMatch(payload: MatchFoundPayload): Promise<void> {
   resetMatchState();
   render();
 
-  const room = await colyseusClient.consumeSeatReservation(
-    normalizeSeatReservation(payload.reservation) as never
-  );
+  const room = await colyseusClient.consumeSeatReservation(payload.reservation);
   state.matchRoom = room;
 
   room.onMessage(MATCH_MESSAGES.snapshot, (snapshot: MatchSnapshot) => {
@@ -612,6 +616,10 @@ function renderLobby(): string {
                 <div class="stat-label">AVG WAIT</div>
                 <div class="stat-value">${state.lobbySnapshot && state.lobbySnapshot.avgWaitMs > 0 ? formatDuration(state.lobbySnapshot.avgWaitMs) : "—"}</div>
               </div>
+              <div>
+                <div class="stat-label">PING</div>
+                <div class="stat-value">${state.pingMs !== null ? `${state.pingMs}ms` : "—"}</div>
+              </div>
               ${state.queueStatus.inQueue && state.queueJoinTime !== null
                 ? `<div>
                     <div class="stat-label">WAITING</div>
@@ -837,59 +845,6 @@ function mapKeyToAction(event: KeyboardEvent): InputAction | null {
     case "Shift": case "c": case "C": return "hold";
     default: return null;
   }
-}
-
-async function requestSeatReservation(
-  roomName: string,
-  options: Record<string, unknown> = {}
-): Promise<LegacySeatReservation> {
-  const response = await fetch(`${httpBase}/matchmake/joinOrCreate/${roomName}`, {
-    method: "POST",
-    headers: { Accept: "application/json", "Content-Type": "application/json" },
-    body: JSON.stringify(options)
-  });
-
-  const payload = await response.json().catch(() => null);
-  if (!response.ok) {
-    const message =
-      payload && typeof payload === "object" && "error" in payload && typeof payload.error === "string"
-        ? payload.error
-        : `Matchmaking request failed (${response.status}).`;
-    throw new Error(message);
-  }
-  return normalizeSeatReservation(payload);
-}
-
-function normalizeSeatReservation(reservation: unknown): LegacySeatReservation {
-  if (!reservation || typeof reservation !== "object") {
-    throw new Error("Invalid match reservation received from server.");
-  }
-
-  if ("room" in reservation && reservation.room && typeof reservation.room === "object") {
-    const room = reservation.room as Record<string, unknown>;
-    if (typeof room.name === "string" && typeof room.roomId === "string" &&
-        "sessionId" in reservation && typeof reservation.sessionId === "string") {
-      return reservation as LegacySeatReservation;
-    }
-  }
-
-  const flat = reservation as SeatReservation & { protocol?: string };
-  if (typeof flat.name !== "string" || typeof flat.roomId !== "string" || typeof flat.sessionId !== "string") {
-    throw new Error("Match reservation is missing required fields.");
-  }
-
-  return {
-    room: {
-      name: flat.name,
-      roomId: flat.roomId,
-      ...(flat.processId ? { processId: flat.processId } : {}),
-      ...(flat.publicAddress ? { publicAddress: flat.publicAddress } : {})
-    },
-    sessionId: flat.sessionId,
-    ...(flat.protocol ? { protocol: flat.protocol } : {}),
-    ...(flat.reconnectionToken ? { reconnectionToken: flat.reconnectionToken } : {}),
-    ...(flat.devMode !== undefined ? { devMode: flat.devMode } : {})
-  };
 }
 
 function formatScore(value: number): string {

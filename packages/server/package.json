@@ -6,7 +6,7 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "npm run build -w @tetris-arena/shared && prisma generate && tsc -b",
-    "dev": "npm run build -w @tetris-arena/shared && prisma generate && tsx watch --env-file .env --ignore './node_modules/@tetris-arena/shared' src/index.ts",
+    "dev": "npm run build -w @tetris-arena/shared && prisma generate && tsx watch --env-file .env src/index.ts",
     "test": "npm run build -w @tetris-arena/shared && vitest run",
     "db:generate": "prisma generate",
     "db:push": "prisma db push"

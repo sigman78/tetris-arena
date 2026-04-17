@@ -8,8 +8,8 @@
     "dev": "npm run build -w @tetris-arena/shared && vite"
   },
   "dependencies": {
+    "@colyseus/sdk": "^0.17.40",
     "@tetris-arena/shared": "0.1.0",
-    "colyseus.js": "^0.16.22",
     "pixi.js": "^8.0.0"
   },
   "devDependencies": {
