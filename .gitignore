@@ -47,3 +47,4 @@ secrets/
 
 *.tsbuildinfo
 packages/server/.env
+packages/server/prisma/dev.db
