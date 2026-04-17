@@ -1,5 +1,5 @@
 import { Client, type Room } from "@colyseus/sdk";
-import { writable } from "svelte/store";
+import { writable, get } from "svelte/store";
 import { LOBBY_MESSAGES, MATCH_MESSAGES } from "@tetris-arena/shared";
 import type {
   InputAction,
@@ -46,18 +46,10 @@ export async function connectLobby(): Promise<void> {
 
   // Queue status updates
   room.onMessage(LOBBY_MESSAGES.queueStatus, (payload: QueueStatusPayload) => {
-    let wasInQueue = false;
-    queueStatus.update((s) => {
-      wasInQueue = s.inQueue;
-      return payload;
-    });
-
-    if (payload.inQueue && !wasInQueue) {
-      queueJoinTime.set(performance.now());
-    }
-    if (!payload.inQueue) {
-      queueJoinTime.set(null);
-    }
+    const wasInQueue = get(queueStatus).inQueue;
+    queueStatus.set(payload);
+    if (payload.inQueue && !wasInQueue) queueJoinTime.set(performance.now());
+    if (!payload.inQueue) queueJoinTime.set(null);
   });
 
   // Lobby snapshot (leaderboard + server stats)
@@ -103,7 +95,7 @@ export async function connectLobby(): Promise<void> {
 // ─────────────────────────────────────────────────────────────
 // connectMatch  (called internally from matchFound handler)
 // ─────────────────────────────────────────────────────────────
-export async function connectMatch(payload: MatchFoundPayload): Promise<void> {
+async function connectMatch(payload: MatchFoundPayload): Promise<void> {
   view.set("match");
   resetMatch();
 
@@ -126,7 +118,11 @@ export async function connectMatch(payload: MatchFoundPayload): Promise<void> {
     matchRoom = null;
     view.set("lobby");
     resetMatch();
-    await connectLobby();
+    try {
+      await connectLobby();
+    } catch (err) {
+      lobbyError.set(err instanceof Error ? err.message : "Reconnection failed.");
+    }
   });
 }
 
@@ -146,6 +142,6 @@ export function sendMatchInput(action: InputAction): void {
 }
 
 export function disconnectLobby(): void {
-  lobbyRoom?.leave();
+  lobbyRoom?.leave().catch(() => { /* intentional disconnect */ });
   lobbyRoom = null;
 }
