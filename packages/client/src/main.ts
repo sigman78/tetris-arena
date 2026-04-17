@@ -53,6 +53,9 @@ const state = {
   matchRoom: null as Room | null,
   leaderboard: [] as LeaderboardEntry[],
   queueStatus: { inQueue: false, queueSize: 0 },
+  lobbySnapshot: null as LobbySnapshot | null,
+  queueJoinTime: null as number | null,
+  queueTickInterval: null as ReturnType<typeof setInterval> | null,
   currentMatch: null as MatchSnapshot | null,
   result: null as MatchResultPayload | null,
   error: null as string | null
@@ -98,13 +101,28 @@ async function connectLobby(): Promise<void> {
   state.lobbyRoom = room;
 
   room.onMessage(LOBBY_MESSAGES.queueStatus, (payload: QueueStatusPayload) => {
+    const wasInQueue = state.queueStatus.inQueue;
     state.queueStatus = payload;
+    if (payload.inQueue && !wasInQueue) {
+      state.queueJoinTime = performance.now();
+      state.queueTickInterval = setInterval(() => {
+        if (state.queueStatus.inQueue) render();
+        else {
+          clearInterval(state.queueTickInterval!);
+          state.queueTickInterval = null;
+        }
+      }, 1000);
+    }
+    if (!payload.inQueue) {
+      state.queueJoinTime = null;
+    }
     render();
   });
 
   room.onMessage(LOBBY_MESSAGES.leaderboard, (payload: LobbySnapshot) => {
     state.leaderboard = payload.leaderboard;
     state.queueStatus.queueSize = payload.queueSize;
+    state.lobbySnapshot = payload;
     render();
   });
 
@@ -573,9 +591,33 @@ function renderLobby(): string {
             </div>
           </div>
           <div class="lobby-meta">
-            <div>
-              <div class="stat-label">PLAYERS WAITING</div>
-              <div class="stat-value">${state.queueStatus.queueSize}</div>
+            <div class="lobby-stats">
+              <div>
+                <div class="stat-label">ONLINE</div>
+                <div class="stat-value">${state.lobbySnapshot?.connectedPlayers ?? "—"}</div>
+              </div>
+              <div>
+                <div class="stat-label">IN QUEUE</div>
+                <div class="stat-value">${state.queueStatus.queueSize}</div>
+              </div>
+              <div>
+                <div class="stat-label">ACTIVE GAMES</div>
+                <div class="stat-value">${state.lobbySnapshot?.activeGames ?? "—"}</div>
+              </div>
+              <div>
+                <div class="stat-label">GAMES PLAYED</div>
+                <div class="stat-value">${state.lobbySnapshot?.gamesPlayedSinceStart ?? "—"}</div>
+              </div>
+              <div>
+                <div class="stat-label">AVG WAIT</div>
+                <div class="stat-value">${state.lobbySnapshot && state.lobbySnapshot.avgWaitMs > 0 ? formatDuration(state.lobbySnapshot.avgWaitMs) : "—"}</div>
+              </div>
+              ${state.queueStatus.inQueue && state.queueJoinTime !== null
+                ? `<div>
+                    <div class="stat-label">WAITING</div>
+                    <div class="stat-value">${formatDuration(performance.now() - state.queueJoinTime)}</div>
+                  </div>`
+                : ""}
             </div>
             <div class="lobby-keys">
               <div class="stat-label" style="margin-bottom:0.4rem">CONTROLS</div>
@@ -858,6 +900,12 @@ function formatMatchTime(seconds: number): string {
   const min = Math.floor(seconds / 60);
   const sec = seconds % 60;
   return `${min}:${sec.toString().padStart(2, "0")}`;
+}
+
+function formatDuration(ms: number): string {
+  const s = Math.floor(ms / 1000);
+  if (s < 60) return `${s}s`;
+  return `${Math.floor(s / 60)}m ${s % 60}s`;
 }
 
 function escapeHtml(value: string): string {

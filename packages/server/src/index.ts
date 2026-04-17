@@ -4,23 +4,17 @@ import cors from "cors";
 import express from "express";
 import { createServer } from "node:http";
 import { LEADERBOARD_LIMIT } from "@tetris-arena/shared";
-import { PORT, getAllowedOrigins } from "./config.js";
+import { PORT, BIND_HOST, isOriginAllowed } from "./config.js";
 import { prisma } from "./db.js";
 import { LobbyRoom } from "./rooms/LobbyRoom.js";
 import { MatchRoom } from "./rooms/MatchRoom.js";
 import { leaderboardService } from "./services/leaderboard.js";
 
-const allowedOrigins = getAllowedOrigins();
 const httpServer = createServer();
 
 const corsOptions: cors.CorsOptions = {
   origin(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-      return;
-    }
-
-    callback(null, false);
+    callback(null, isOriginAllowed(origin));
   },
   credentials: true
 };
@@ -29,13 +23,7 @@ const gameServer = new Server({
   transport: new WebSocketTransport({
     server: httpServer,
     verifyClient: (info, callback) => {
-      const origin = info.origin;
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(true);
-        return;
-      }
-
-      callback(false, 403, "Origin not allowed");
+      isOriginAllowed(info.origin) ? callback(true) : callback(false, 403, "Origin not allowed");
     }
   }),
   beforeListen: async () => {
@@ -75,8 +63,8 @@ const gameServer = new Server({
 gameServer.define("lobby", LobbyRoom);
 gameServer.define("match", MatchRoom);
 
-void gameServer.listen(PORT).then(() => {
-  console.log(`Tetris Arena server listening on http://localhost:${PORT}`);
+void gameServer.listen(PORT, BIND_HOST).then(() => {
+  console.log(`Tetris Arena server listening on http://${BIND_HOST}:${PORT}`);
 }).catch(async (error) => {
   console.error(error);
   await prisma.$disconnect();

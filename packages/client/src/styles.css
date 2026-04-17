@@ -263,13 +263,17 @@ input::placeholder {
 
 .lobby-meta {
   display: flex;
-  gap: 1.5rem;
-  align-items: flex-start;
+  flex-direction: column;
+  gap: 0.9rem;
 }
 
-.lobby-keys {
-  flex: 1;
+.lobby-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem 1.2rem;
 }
+
+.lobby-keys {}
 
 .lobby-records-header {
   display: flex;

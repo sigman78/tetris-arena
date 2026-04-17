@@ -21,6 +21,14 @@ const DISAMBIG_WORDS = [
   "Uniform", "Victor", "Whiskey", "Xray", "Yankee"
 ];
 
+function hashSeed(s: string): number {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) {
+    h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
+  }
+  return h || 1;
+}
+
 function disambiguateWord(id: string): string {
   let h = 5381;
   for (let i = 0; i < id.length; i++) {
@@ -49,7 +57,7 @@ export class MatchSimulation {
     this.players = participants.map((player, index) => ({
       id: player.id,
       nickname: player.nickname,
-      state: createPlayerState(1000 + index * 100 + matchId.length)
+      state: createPlayerState(hashSeed(`${matchId}:${index}`))
     }));
   }
 

@@ -78,6 +78,10 @@ export interface LeaderboardEntry {
 export interface LobbySnapshot {
   leaderboard: LeaderboardEntry[];
   queueSize: number;
+  connectedPlayers: number;
+  activeGames: number;
+  gamesPlayedSinceStart: number;
+  avgWaitMs: number;
 }
 
 export interface JoinQueuePayload {

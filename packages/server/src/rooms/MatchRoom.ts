@@ -114,6 +114,7 @@ export class MatchRoom extends Room {
         result.winnerScore,
         result.loserScore
       );
+      lobbyService.onMatchEnd();
       await lobbyService.broadcastLobbySnapshot();
     }
   }
