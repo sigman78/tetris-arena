@@ -48,3 +48,7 @@ secrets/
 *.tsbuildinfo
 packages/server/.env
 packages/server/prisma/dev.db
+
+# Git worktrees & brainstorm artifacts
+.worktrees/
+.superpowers/
