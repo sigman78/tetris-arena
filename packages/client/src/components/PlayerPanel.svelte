@@ -29,54 +29,56 @@
   }
 </script>
 
-<div class="lobby-brand">
-  <p class="stat-label" style="margin:0 0 0.4rem">ONLINE PVP · KEYBOARD</p>
-  <h1 class="title">Tetris<br>Arena</h1>
-  <p class="muted" style="margin-top:0.4rem;font-size:0.82rem;letter-spacing:0.04em">
-    Clear lines, pressure your opponent, survive the garbage war.
-  </p>
-</div>
-
-<div class="stack lobby-setup">
-  <div class="stat-label">CALLSIGN</div>
-  <input
-    maxlength="18"
-    placeholder="Enter your callsign…"
-    value={$nickname}
-    on:input={e => nickname.set(e.currentTarget.value)}
-  />
-</div>
-
-<div class="stack" style="gap:0.55rem">
-  <div class="row">
-    <button
-      class="primary"
-      disabled={$queueStatus.inQueue || !$lobbyConnected}
-      on:click={handleJoinQueue}
-    >
-      {$queueStatus.inQueue ? 'SEARCHING…' : 'FIND MATCH'}
-    </button>
-    <button
-      class="secondary"
-      disabled={!$queueStatus.inQueue}
-      on:click={handleLeaveQueue}
-    >
-      LEAVE
-    </button>
+<div class="panel stack">
+  <div class="lobby-brand">
+    <p class="stat-label" style="margin:0 0 0.4rem">ONLINE PVP · KEYBOARD</p>
+    <h1 class="title">Tetris<br>Arena</h1>
+    <p class="muted" style="margin-top:0.4rem;font-size:0.82rem;letter-spacing:0.04em">
+      Clear lines, pressure your opponent, survive the garbage war.
+    </p>
   </div>
-  <QueueStatus on:retry={handleRetry} />
-</div>
 
-<div class="lobby-meta">
-  <ServerStats />
-  <div class="lobby-keys">
-    <div class="stat-label" style="margin-bottom:0.4rem">CONTROLS</div>
-    <div class="controls">
-      <span>Move ←→</span>
-      <span>Rotate X / Z</span>
-      <span>Soft drop ↓</span>
-      <span>Hard drop Space</span>
-      <span>Hold Shift / C</span>
+  <div class="stack lobby-setup">
+    <div class="stat-label">CALLSIGN</div>
+    <input
+      maxlength="18"
+      placeholder="Enter your callsign…"
+      value={$nickname}
+      on:input={e => nickname.set(e.currentTarget.value)}
+    />
+  </div>
+
+  <div class="stack" style="gap:0.55rem">
+    <div class="row">
+      <button
+        class="primary"
+        disabled={$queueStatus.inQueue || !$lobbyConnected}
+        on:click={handleJoinQueue}
+      >
+        {$queueStatus.inQueue ? 'SEARCHING…' : 'FIND MATCH'}
+      </button>
+      <button
+        class="secondary"
+        disabled={!$queueStatus.inQueue}
+        on:click={handleLeaveQueue}
+      >
+        LEAVE
+      </button>
+    </div>
+    <QueueStatus on:retry={handleRetry} />
+  </div>
+
+  <div class="lobby-meta">
+    <ServerStats />
+    <div class="lobby-keys">
+      <div class="stat-label" style="margin-bottom:0.4rem">CONTROLS</div>
+      <div class="controls">
+        <span>Move ←→</span>
+        <span>Rotate X / Z</span>
+        <span>Soft drop ↓</span>
+        <span>Hard drop Space</span>
+        <span>Hold Shift / C</span>
+      </div>
     </div>
   </div>
 </div>

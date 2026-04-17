@@ -6,6 +6,7 @@
   const medals = ["🥇", "🥈", "🥉"];
 </script>
 
+<div class="panel">
 <div class="lobby-records-header">
   <div>
     <h2 class="lobby-records-title">Arena Records</h2>
@@ -44,6 +45,7 @@
     {/if}
   </tbody>
 </table>
+</div>
 
 <style>
   .lobby-records-header {
