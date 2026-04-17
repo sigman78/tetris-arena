@@ -16,4 +16,5 @@ export function applyLobbySnapshot(snap: LobbySnapshot): void {
   activeGames.set(snap.activeGames);
   gamesPlayedSinceStart.set(snap.gamesPlayedSinceStart);
   avgWaitMs.set(snap.avgWaitMs);
+  queueStatus.update(s => ({ ...s, queueSize: snap.queueSize }));
 }
