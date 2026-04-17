@@ -5,7 +5,11 @@
 
 <main class="shell">
   <section class="hero">
-    <PlayerPanel />
-    <Leaderboard />
+    <div class="panel stack">
+      <PlayerPanel />
+    </div>
+    <div class="panel">
+      <Leaderboard />
+    </div>
   </section>
 </main>
