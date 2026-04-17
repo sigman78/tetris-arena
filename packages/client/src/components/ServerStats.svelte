@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { connectedPlayers, activeGames, gamesPlayedSinceStart, avgWaitMs, ping } from '../stores/lobby.js';
+  import { connectedPlayers, activeGames, gamesPlayedSinceStart, avgWaitMs, ping, queueStatus } from '../stores/lobby.js';
   import { formatDuration } from '../utils/format.js';
 </script>
 
@@ -15,6 +15,10 @@
   <div>
     <div class="stat-label">GAMES PLAYED</div>
     <div class="stat-value">{$gamesPlayedSinceStart ?? '—'}</div>
+  </div>
+  <div>
+    <div class="stat-label">IN QUEUE</div>
+    <div class="stat-value">{$queueStatus.queueSize}</div>
   </div>
   <div>
     <div class="stat-label">AVG WAIT</div>

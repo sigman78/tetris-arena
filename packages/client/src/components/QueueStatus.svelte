@@ -6,10 +6,10 @@
 
   const dispatch = createEventDispatcher();
 
-  let now = Date.now();
+  let now = performance.now();
   let ticker: ReturnType<typeof setInterval>;
 
-  onMount(() => { ticker = setInterval(() => { now = Date.now(); }, 1000); });
+  onMount(() => { ticker = setInterval(() => { now = performance.now(); }, 1000); });
   onDestroy(() => clearInterval(ticker));
 
   function handleRetry() {

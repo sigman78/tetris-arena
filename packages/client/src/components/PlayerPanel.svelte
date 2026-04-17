@@ -82,10 +82,6 @@
 </div>
 
 <style>
-  .lobby-brand :global(.title) {
-    line-height: 0.9;
-  }
-
   .lobby-setup {
     gap: 0.4rem !important;
   }

@@ -4,9 +4,9 @@ import type { LeaderboardEntry, QueueStatusPayload, LobbySnapshot } from '@tetri
 export const lobbyConnected = writable(false);
 export const leaderboard = writable<LeaderboardEntry[]>([]);
 export const queueStatus = writable<QueueStatusPayload>({ inQueue: false, queueSize: 0 });
-export const connectedPlayers = writable(0);
-export const activeGames = writable(0);
-export const gamesPlayedSinceStart = writable(0);
+export const connectedPlayers = writable<number | null>(null);
+export const activeGames = writable<number | null>(null);
+export const gamesPlayedSinceStart = writable<number | null>(null);
 export const avgWaitMs = writable(0);
 export const ping = writable<number | null>(null);
 export const lobbyError = writable<string | null>(null);
